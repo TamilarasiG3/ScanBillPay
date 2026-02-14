@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart POS Scanner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    body {
+      box-sizing: border-box;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.6); }
+    }
+    
+    .item-enter { animation: slideIn 0.3s ease-out; }
+    .scanner-active { animation: pulse-glow 2s infinite; }
+    
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    #qr-reader video {
+      border-radius: 12px;
+    }
+    
+    #qr-reader__scan_region {
+      background: transparent !important;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full bg-slate-900 text-white overflow-auto">
+  <div id="app-wrapper" class="w-full h-full min-h-full flex flex-col"><!-- Header -->
+   <header class="bg-slate-800 border-b border-slate-700 px-4 py-4 flex-shrink-0">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+     <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+       <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+       </svg>
+      </div>
+      <div>
+       <h1 id="store-name" class="text-xl font-bold text-white">Smart POS</h1>
+       <p class="text-xs text-slate-400">Scan • Bill • Pay</p>
+      </div>
+     </div><button id="history-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg> History </button>
+    </div>
+   </header><!-- Main Content -->
+   <main class="flex-1 overflow-auto p-4">
+    <div class="max-w-4xl mx-auto"><!-- Scanner Section -->
+     <div id="scanner-section" class="mb-6">
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+       <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold flex items-center gap-2"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> QR Scanner</h2><button id="toggle-scanner" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors"> Start Scanner </button>
+       </div>
+       <div id="qr-reader" class="w-full max-w-sm mx-auto rounded-xl overflow-hidden bg-slate-900" style="display: none;"></div>
+       <div id="scanner-placeholder" class="w-full max-w-sm mx-auto h-48 bg-slate-900 rounded-xl flex flex-col items-center justify-center gap-3 border-2 border-dashed border-slate-600">
+        <svg class="w-12 h-12 text-slate-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+        </svg>
+        <p class="text-slate-400 text-sm">Click "Start Scanner" to scan products</p>
+       </div><!-- Manual Add -->
+       <div class="mt-4 pt-4 border-t border-slate-700">
+        <p class="text-sm text-slate-400 mb-3">Or add item manually:</p>
+        <div class="flex gap-2"><input type="text" id="manual-name" placeholder="Product name" class="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm focus:outline-none focus:border-emerald-500"> <input type="number" id="manual-price" placeholder="Price" class="w-24 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm focus:outline-none focus:border-emerald-500"> <button id="add-manual" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors">Add</button>
+        </div>
+       </div>
+      </div>
+     </div><!-- Cart Section -->
+     <div id="cart-section" class="mb-6">
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+       <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Current Cart</h2><button id="clear-cart" class="text-sm text-red-400 hover:text-red-300 transition-colors">Clear All</button>
+       </div>
+       <div id="cart-items" class="space-y-2 max-h-64 overflow-auto mb-4">
+        <div id="empty-cart" class="py-8 text-center text-slate-400">
+         <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+         </svg>
+         <p>No items in cart</p>
+         <p class="text-xs mt-1">Scan QR codes to add products</p>
+        </div>
+       </div><!-- Total -->
+       <div class="pt-4 border-t border-slate-700">
+        <div class="flex justify-between items-center text-lg font-bold"><span>Total</span> <span id="cart-total" class="text-emerald-400">₹0.00</span>
+        </div>
+       </div>
+      </div>
+     </div><!-- Payment Section -->
+     <div id="payment-section" class="mb-6">
+      <div class="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl p-4">
+       <h2 class="text-lg font-semibold mb-4">Generate Payment</h2>
+       <div class="space-y-3">
+        <div><label class="text-sm text-emerald-100 mb-1 block">Customer Phone Number</label>
+         <div class="flex gap-2"><input type="tel" id="customer-phone" placeholder="+91 98765 43210" class="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-emerald-200 focus:outline-none focus:border-white">
+         </div>
+        </div>
+        <div class="flex gap-2"><button id="generate-bill" class="flex-1 px-4 py-3 bg-white text-emerald-700 font-semibold rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg> Generate Bill </button> <button id="send-sms" class="px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-colors flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg> Send </button>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </main><!-- Bill Modal -->
+   <div id="bill-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" style="display: none;">
+    <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-md max-h-[90%] overflow-auto">
+     <div class="flex justify-between items-center mb-4">
+      <h3 class="text-xl font-bold">Payment Invoice</h3><button id="close-bill" class="text-slate-400 hover:text-white">
+       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+       </svg></button>
+     </div>
+     <div id="bill-content" class="bg-white text-slate-900 rounded-xl p-4 mb-4"><!-- Bill content will be generated here -->
+     </div>
+     <div id="payment-qr" class="bg-white rounded-xl p-4 mb-4 flex flex-col items-center">
+      <p class="text-slate-600 text-sm mb-2">Scan to Pay</p>
+      <div id="qr-display" class="w-48 h-48 bg-slate-100 rounded-lg flex items-center justify-center"><!-- QR Code will be displayed here -->
+      </div>
+     </div>
+     <div class="flex gap-2"><button id="mark-paid" class="flex-1 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 rounded-xl font-semibold transition-colors"> Mark as Paid </button> <button id="copy-link" class="px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors">
+       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+       </svg></button>
+     </div>
+    </div>
+   </div><!-- History Modal -->
+   <div id="history-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" style="display: none;">
+    <div class="bg-slate-800 rounded-2xl p-6 w-full max-w-lg max-h-[90%] overflow-auto">
+     <div class="flex justify-between items-center mb-4">
+      <h3 class="text-xl font-bold">Transaction History</h3><button id="close-history" class="text-slate-400 hover:text-white">
+       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+       </svg></button>
+     </div>
+     <div id="history-list" class="space-y-3">
+      <p class="text-slate-400 text-center py-8">No transactions yet</p>
+     </div>
+    </div>
+   </div><!-- Toast Container -->
+   <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+  </div>
+  <script>
+    // App State
+    let cart = [];
+    let html5QrCode = null;
+    let scannerActive = false;
+    let transactions = [];
+    let currentTransaction = null;
+    let isLoading = false;
+
+    // Default Config
+    const defaultConfig = {
+      store_name: 'Smart POS',
+      currency_symbol: '₹',
+      payment_note: 'Thank you for shopping with us!',
+      background_color: '#0f172a',
+      surface_color: '#1e293b',
+      text_color: '#ffffff',
+      primary_action_color: '#10b981',
+      secondary_action_color: '#64748b'
+    };
+
+    // Data Handler
+    const dataHandler = {
+      onDataChanged(data) {
+        transactions = data;
+        renderHistory();
+      }
+    };
+
+    // Element Handler
+    const elementHandler = {
+      defaultConfig,
+      async onConfigChange(config) {
+        document.getElementById('store-name').textContent = config.store_name || defaultConfig.store_name;
+        
+        const currency = config.currency_symbol || defaultConfig.currency_symbol;
+        updateCurrencyDisplay(currency);
+        
+        // Apply colors
+        const bg = config.background_color || defaultConfig.background_color;
+        const surface = config.surface_color || defaultConfig.surface_color;
+        const text = config.text_color || defaultConfig.text_color;
+        const primary = config.primary_action_color || defaultConfig.primary_action_color;
+        const secondary = config.secondary_action_color || defaultConfig.secondary_action_color;
+        
+        document.body.style.backgroundColor = bg;
+        document.querySelectorAll('.bg-slate-800').forEach(el => el.style.backgroundColor = surface);
+        document.body.style.color = text;
+        document.querySelectorAll('.bg-emerald-500, .from-emerald-600').forEach(el => {
+          if (el.classList.contains('from-emerald-600')) {
+            el.style.background = `linear-gradient(to bottom right, ${primary}, ${primary}dd)`;
+          } else {
+            el.style.backgroundColor = primary;
+          }
+        });
+        document.querySelectorAll('.bg-slate-700').forEach(el => el.style.backgroundColor = secondary);
+      },
+      mapToCapabilities(config) {
+        return {
+          recolorables: [
+            {
+              get: () => config.background_color || defaultConfig.background_color,
+              set: (v) => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); }
+            },
+            {
+              get: () => config.surface_color || defaultConfig.surface_color,
+              set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); }
+            },
+            {
+              get: () => config.text_color || defaultConfig.text_color,
+              set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); }
+            },
+            {
+              get: () => config.primary_action_color || defaultConfig.primary_action_color,
+              set: (v) => { config.primary_action_color = v; window.elementSdk.setConfig({ primary_action_color: v }); }
+            },
+            {
+              get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
+              set: (v) => { config.secondary_action_color = v; window.elementSdk.setConfig({ secondary_action_color: v }); }
+            }
+          ],
+          borderables: [],
+          fontEditable: undefined,
+          fontSizeable: undefined
+        };
+      },
+      mapToEditPanelValues(config) {
+        return new Map([
+          ['store_name', config.store_name || defaultConfig.store_name],
+          ['currency_symbol', config.currency_symbol || defaultConfig.currency_symbol],
+          ['payment_note', config.payment_note || defaultConfig.payment_note]
+        ]);
+      }
+    };
+
+    // Initialize SDKs
+    async function init() {
+      if (window.elementSdk) {
+        await window.elementSdk.init(elementHandler);
+      }
+      if (window.dataSdk) {
+        await window.dataSdk.init(dataHandler);
+      }
+      setupEventListeners();
+    }
+
+    // Currency Display Update
+    function updateCurrencyDisplay(currency) {
+      const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      document.getElementById('cart-total').textContent = `${currency}${total.toFixed(2)}`;
+    }
+
+    // Toast Notification
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-4 py-3 rounded-xl shadow-lg ${type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : 'bg-slate-700'} text-white text-sm font-medium`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // QR Scanner Functions
+    function toggleScanner() {
+      const btn = document.getElementById('toggle-scanner');
+      const reader = document.getElementById('qr-reader');
+      const placeholder = document.getElementById('scanner-placeholder');
+      
+      if (!scannerActive) {
+        reader.style.display = 'block';
+        placeholder.style.display = 'none';
+        btn.textContent = 'Stop Scanner';
+        btn.classList.add('bg-red-500', 'hover:bg-red-600');
+        btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600');
+        
+        html5QrCode = new Html5Qrcode('qr-reader');
+        html5QrCode.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onScanSuccess,
+          () => {}
+        ).catch(err => {
+          showToast('Camera access denied', 'error');
+          resetScanner();
+        });
+        scannerActive = true;
+      } else {
+        stopScanner();
+      }
+    }
+
+    function stopScanner() {
+      if (html5QrCode && scannerActive) {
+        html5QrCode.stop().then(() => {
+          resetScanner();
+        }).catch(() => {
+          resetScanner();
+        });
+      }
+    }
+
+    function resetScanner() {
+      const btn = document.getElementById('toggle-scanner');
+      const reader = document.getElementById('qr-reader');
+      const placeholder = document.getElementById('scanner-placeholder');
+      
+      reader.style.display = 'none';
+      placeholder.style.display = 'flex';
+      btn.textContent = 'Start Scanner';
+      btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+      btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600');
+      scannerActive = false;
+    }
+
+    function onScanSuccess(decodedText) {
+      try {
+        // Expected QR format: {"name":"Product","price":100}
+        const product = JSON.parse(decodedText);
+        if (product.name && product.price) {
+          addToCart(product.name, parseFloat(product.price));
+          showToast(`Added: ${product.name}`);
+        }
+      } catch (e) {
+        // Simple format: name|price
+        const parts = decodedText.split('|');
+        if (parts.length === 2) {
+          addToCart(parts[0], parseFloat(parts[1]));
+          showToast(`Added: ${parts[0]}`);
+        } else {
+          showToast('Invalid QR format', 'error');
+        }
+      }
+    }
+
+    // Cart Functions
+    function addToCart(name, price) {
+      const existing = cart.find(item => item.name === name);
+      if (existing) {
+        existing.qty++;
+      } else {
+        cart.push({ id: Date.now(), name, price, qty: 1 });
+      }
+      renderCart();
+    }
+
+    function removeFromCart(id) {
+      cart = cart.filter(item => item.id !== id);
+      renderCart();
+    }
+
+    function updateQty(id, delta) {
+      const item = cart.find(i => i.id === id);
+      if (item) {
+        item.qty += delta;
+        if (item.qty <= 0) {
+          removeFromCart(id);
+        } else {
+          renderCart();
+        }
+      }
+    }
+
+    function clearCart() {
+      cart = [];
+      renderCart();
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cart-items');
+      const emptyMsg = document.getElementById('empty-cart');
+      const config = window.elementSdk?.config || defaultConfig;
+      const currency = config.currency_symbol || defaultConfig.currency_symbol;
+      
+      if (cart.length === 0) {
+        container.innerHTML = '';
+        container.appendChild(emptyMsg.cloneNode(true));
+        document.getElementById('cart-total').textContent = `${currency}0.00`;
+        return;
+      }
+      
+      let total = 0;
+      container.innerHTML = cart.map(item => {
+        total += item.price * item.qty;
+        return `
+          <div class="item-enter flex items-center justify-between bg-slate-900 rounded-xl p-3">
+            <div class="flex-1">
+              <p class="font-medium">${item.name}</p>
+              <p class="text-sm text-slate-400">${currency}${item.price.toFixed(2)} each</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="updateQty(${item.id}, -1)" class="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center">−</button>
+              <span class="w-8 text-center">${item.qty}</span>
+              <button onclick="updateQty(${item.id}, 1)" class="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center">+</button>
+              <button onclick="removeFromCart(${item.id})" class="ml-2 text-red-400 hover:text-red-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      document.getElementById('cart-total').textContent = `${currency}${total.toFixed(2)}`;
+    }
+
+    // Bill Generation
+    async function generateBill() {
+      if (cart.length === 0) {
+        showToast('Cart is empty', 'error');
+        return;
+      }
+      
+      if (isLoading) return;
+      
+      const config = window.elementSdk?.config || defaultConfig;
+      const currency = config.currency_symbol || defaultConfig.currency_symbol;
+      const storeName = config.store_name || defaultConfig.store_name;
+      const note = config.payment_note || defaultConfig.payment_note;
+      const phone = document.getElementById('customer-phone').value;
+      
+      const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const transactionId = 'TXN' + Date.now().toString(36).toUpperCase();
+      
+      // Generate bill content
+      const billContent = document.getElementById('bill-content');
+      billContent.innerHTML = `
+        <div class="text-center mb-4 pb-4 border-b border-slate-200">
+          <h4 class="text-xl font-bold">${storeName}</h4>
+          <p class="text-xs text-slate-500">Transaction: ${transactionId}</p>
+          <p class="text-xs text-slate-500">${new Date().toLocaleString()}</p>
+        </div>
+        <div class="space-y-2 mb-4 pb-4 border-b border-slate-200">
+          ${cart.map(item => `
+            <div class="flex justify-between text-sm">
+              <span>${item.name} × ${item.qty}</span>
+              <span>${currency}${(item.price * item.qty).toFixed(2)}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="flex justify-between font-bold text-lg mb-4">
+          <span>Total</span>
+          <span>${currency}${total.toFixed(2)}</span>
+        </div>
+        ${phone ? `<p class="text-xs text-slate-500">Customer: ${phone}</p>` : ''}
+        <p class="text-xs text-center text-slate-400 mt-4">${note}</p>
+      `;
+      
+      // Generate QR for payment
+      const qrDisplay = document.getElementById('qr-display');
+      const paymentData = JSON.stringify({
+        store: storeName,
+        txn: transactionId,
+        amount: total,
+        currency: currency
+      });
+      
+      // Create simple QR representation
+      qrDisplay.innerHTML = `
+        <div class="text-center">
+          <svg viewBox="0 0 100 100" class="w-40 h-40">
+            <rect x="10" y="10" width="20" height="20" fill="#000"/>
+            <rect x="70" y="10" width="20" height="20" fill="#000"/>
+            <rect x="10" y="70" width="20" height="20" fill="#000"/>
+            <rect x="40" y="40" width="20" height="20" fill="#000"/>
+            <rect x="15" y="15" width="10" height="10" fill="#fff"/>
+            <rect x="75" y="15" width="10" height="10" fill="#fff"/>
+            <rect x="15" y="75" width="10" height="10" fill="#fff"/>
+            <text x="50" y="98" text-anchor="middle" font-size="6" fill="#666">${transactionId}</text>
+          </svg>
+          <p class="text-sm font-bold mt-2">${currency}${total.toFixed(2)}</p>
+        </div>
+      `;
+      
+      currentTransaction = {
+        transaction_id: transactionId,
+        items: JSON.stringify(cart),
+        total_amount: total,
+        customer_phone: phone,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+      
+      document.getElementById('bill-modal').style.display = 'flex';
+    }
+
+    // Mark as Paid
+    async function markAsPaid() {
+      if (!currentTransaction || isLoading) return;
+      
+      if (transactions.length >= 999) {
+        showToast('Storage limit reached', 'error');
+        return;
+      }
+      
+      isLoading = true;
+      document.getElementById('mark-paid').textContent = 'Saving...';
+      
+      currentTransaction.status = 'paid';
+      
+      if (window.dataSdk) {
+        const result = await window.dataSdk.create(currentTransaction);
+        if (result.isOk) {
+          showToast('Payment recorded!');
+          clearCart();
+          document.getElementById('customer-phone').value = '';
+        } else {
+          showToast('Failed to save', 'error');
+        }
+      } else {
+        showToast('Payment marked as paid');
+        clearCart();
+      }
+      
+      isLoading = false;
+      document.getElementById('mark-paid').textContent = 'Mark as Paid';
+      document.getElementById('bill-modal').style.display = 'none';
+      currentTransaction = null;
+    }
+
+    // Send SMS
+    function sendSMS() {
+      const phone = document.getElementById('customer-phone').value;
+      if (!phone) {
+        showToast('Enter customer phone number', 'error');
+        return;
+      }
+      
+      const config = window.elementSdk?.config || defaultConfig;
+      const currency = config.currency_symbol || defaultConfig.currency_symbol;
+      const storeName = config.store_name || defaultConfig.store_name;
+      const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      
+      const message = `${storeName} - Payment of ${currency}${total.toFixed(2)}. Items: ${cart.map(i => i.name).join(', ')}`;
+      const smsUrl = `sms:${phone}?body=${encodeURIComponent(message)}`;
+      
+      window.open(smsUrl, '_blank');
+      showToast('Opening SMS app...');
+    }
+
+    // Copy Link
+    function copyPaymentLink() {
+      if (!currentTransaction) return;
+      
+      const link = `Payment ID: ${currentTransaction.transaction_id} | Amount: ${currentTransaction.total_amount}`;
+      navigator.clipboard.writeText(link).then(() => {
+        showToast('Payment info copied!');
+      }).catch(() => {
+        showToast('Copy failed', 'error');
+      });
+    }
+
+    // Render History
+    function renderHistory() {
+      const container = document.getElementById('history-list');
+      const config = window.elementSdk?.config || defaultConfig;
+      const currency = config.currency_symbol || defaultConfig.currency_symbol;
+      
+      if (transactions.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-8">No transactions yet</p>';
+        return;
+      }
+      
+      container.innerHTML = transactions.slice().reverse().map(txn => {
+        const items = JSON.parse(txn.items || '[]');
+        const date = new Date(txn.created_at).toLocaleDateString();
+        return `
+          <div class="bg-slate-900 rounded-xl p-4">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <p class="font-medium">${txn.transaction_id}</p>
+                <p class="text-xs text-slate-400">${date}</p>
+              </div>
+              <span class="px-2 py-1 rounded-full text-xs ${txn.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}">
+                ${txn.status}
+              </span>
+            </div>
+            <p class="text-sm text-slate-400">${items.length} items</p>
+            <p class="text-lg font-bold text-emerald-400">${currency}${txn.total_amount.toFixed(2)}</p>
+            ${txn.customer_phone ? `<p class="text-xs text-slate-500 mt-1">📞 ${txn.customer_phone}</p>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Event Listeners
+    function setupEventListeners() {
+      document.getElementById('toggle-scanner').addEventListener('click', toggleScanner);
+      document.getElementById('clear-cart').addEventListener('click', clearCart);
+      document.getElementById('generate-bill').addEventListener('click', generateBill);
+      document.getElementById('send-sms').addEventListener('click', sendSMS);
+      document.getElementById('mark-paid').addEventListener('click', markAsPaid);
+      document.getElementById('copy-link').addEventListener('click', copyPaymentLink);
+      
+      document.getElementById('close-bill').addEventListener('click', () => {
+        document.getElementById('bill-modal').style.display = 'none';
+      });
+      
+      document.getElementById('history-btn').addEventListener('click', () => {
+        document.getElementById('history-modal').style.display = 'flex';
+      });
+      
+      document.getElementById('close-history').addEventListener('click', () => {
+        document.getElementById('history-modal').style.display = 'none';
+      });
+      
+      document.getElementById('add-manual').addEventListener('click', () => {
+        const name = document.getElementById('manual-name').value.trim();
+        const price = parseFloat(document.getElementById('manual-price').value);
+        
+        if (!name || isNaN(price) || price <= 0) {
+          showToast('Enter valid product details', 'error');
+          return;
+        }
+        
+        addToCart(name, price);
+        showToast(`Added: ${name}`);
+        document.getElementById('manual-name').value = '';
+        document.getElementById('manual-price').value = '';
+      });
+      
+      // Close modals on backdrop click
+      document.getElementById('bill-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'bill-modal') {
+          document.getElementById('bill-modal').style.display = 'none';
+        }
+      });
+      
+      document.getElementById('history-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'history-modal') {
+          document.getElementById('history-modal').style.display = 'none';
+        }
+      });
+    }
+
+    // Initialize
+    init();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9c7a3be3447279f2',t:'MTc3MDA0MTAyNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
